@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="foscamipcamera" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0 http://eclipse.org/smarthome/schemas/thing-description-1.0.0.xsd">
+
+	<!-- Sample Thing Type -->
+	<thing-type id="camera">
+		<label>Foscam IP Camera</label>
+		<description>Foscam IP Camera</description>
+		<category>Camera</category>
+
+		<channels>
+			<channel id="motion_detection" typeId="motion_detection-channel" />
+			<channel id="image_snapshot" typeId="image_snapshot-channel" />
+			<channel id="ptz_control" typeId="ptz_control-channel" />
+		</channels>
+
+		<config-description>
+			<parameter name="cameraNetworkAddress" type="text" required="true">
+				<label>Camera network address</label>
+				<description>Camera network ip address or hostname.</description>
+			</parameter>
+			<parameter name="cameraNetworkPort" type="text" required="false">
+				<label>Camera network port</label>
+				<description>Camera network port.</description>
+			</parameter>
+			<parameter name="cameraNetworkTLS" type="boolean" required="false">
+				<label>Camera TLS enabled</label>
+				<description>Camera network ip address or hostname.</description>
+			</parameter>
+			<parameter name="cameraUsername" type="text" required="true">
+				<label>Camera username</label>
+				<description>Camera username.</description>
+			</parameter>
+			<parameter name="cameraPassword" type="text" required="true">
+				<label>Camera password</label>
+				<description>Camera password.</description>
+				<context>password</context>
+			</parameter>
+		</config-description>
+
+	</thing-type>
+
+	<channel-type id="motion_detection-channel">
+		<item-type>Switch</item-type>
+		<label>Motion detected</label>
+		<description>Indicates if motion is detected</description>
+		<category>Motion</category>
+	</channel-type>
+	<channel-type id="image_snapshot-channel">
+		<item-type>Image</item-type>
+		<label>Snapshot image</label>
+		<description>Latest snapshot image</description>
+		<category>MediaControl</category>
+	</channel-type>
+	<channel-type id="ptz_control-channel">
+		<item-type>String</item-type>
+		<label>FoscamIPCamera motion detection channel</label>
+		<description>FoscamIPCamera motion detection channel</description>
+		<category>MoveControl</category>
+	</channel-type>
+
+</thing:thing-descriptions>
