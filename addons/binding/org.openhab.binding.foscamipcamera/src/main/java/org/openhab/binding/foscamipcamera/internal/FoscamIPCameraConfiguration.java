@@ -27,7 +27,7 @@ public class FoscamIPCameraConfiguration {
     /**
      * Camera network
      */
-    public String cameraNetworkPort;
+    public Integer cameraNetworkPort;
 
     /**
      * Camera TLS option
@@ -43,4 +43,19 @@ public class FoscamIPCameraConfiguration {
      * Camera password
      */
     public String cameraPassword;
+
+    /**
+     * Polling time
+     */
+    public Double pollingSeconds;
+
+    /**
+     * Disable TLS hostname validation
+     */
+    public Boolean disableHostnameValidation;
+
+    /**
+     * Disable TLS certificate validation
+     */
+    public Boolean disableCertificateValidation;
 }

@@ -18,10 +18,12 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.eclipse.smarthome.core.library.types.RawType;
+import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.*;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.openhab.binding.foscamipcamera.internal.FoscamIPCameraConfiguration;
+import org.openhab.binding.foscamipcamera.tls.LenientSSLSocketFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -29,7 +31,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
@@ -69,22 +71,20 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        switch(channelUID.getId()) {
-            case CHANNEL_PTZ_CONTROL:
-                try {
-                    if(PTZ_CONTROL_VALID_COMMANDS.contains(command.toString())) {
-                        Integer moveResult = Integer.valueOf(getXMLTag(readContent(
-                            new URL(getCameraCommandUri(command.toString()))),"result"));
-                        updateStatus(ThingStatus.ONLINE);
-                    } else {
-                        logger.warn("could not handle command: {}", getThing(), command.toString());
-                        updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                            "not a valid command: " + command.toString());
-                    }
-                } catch (Exception e) {
-                    handleException(e);
+        if(CHANNEL_PTZ_CONTROL.equals(channelUID.getId())) {
+            try {
+                if(PTZ_CONTROL_VALID_COMMANDS.contains(command.toString())) {
+                    Integer moveResult = Integer.valueOf(getXMLTag(readContent(
+                        new URL(getCameraCommandUri(command.toString()))),"result"));
+                    updateStatus(ThingStatus.ONLINE);
+                } else {
+                    logger.warn("could not handle command: {}", getThing(), command.toString());
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                        "it is not a valid command: " + command.toString());
                 }
-                break;
+            } catch (Exception e) {
+                handleException(e);
+            }
         }
     }
 
@@ -94,11 +94,12 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
         updateStatus(ThingStatus.UNKNOWN);
         logger.debug("Initialize thing: {}::{}", getThing().getLabel(), getThing().getUID());
         try {
-            Object param = getConfig().get("poll");
-            polltime_ms = (long) (Double.parseDouble(String.valueOf(param)) * 1000);
+            if(config.pollingSeconds != null && config.pollingSeconds > 0) {
+                polltime_ms = Double.valueOf(config.pollingSeconds * 1000).longValue();
+            }
         } catch (Exception e1) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR);
-            logger.warn("could not read poll time from configuration", e1);
+            logger.warn("could not read polling time (pollingSeconds) from configuration", e1);
         }
         logger.debug("Schedule update at fixed rate {} ms.", polltime_ms);
         if (initialized.compareAndSet(false, true)) {
@@ -108,7 +109,7 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
                 public Void call() throws Exception {
                     while (weakReference.get() != null) {
                         refreshData();
-                        Thread.sleep(Math.max(10, polltime_ms));
+                        Thread.sleep(Math.max(1000, polltime_ms));
                     }
                     return null;
                 }
@@ -125,7 +126,7 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
             uri.append("http://");
         }
         uri.append(config.cameraNetworkAddress);
-        if(config.cameraNetworkPort != null && config.cameraNetworkPort.matches("[0-9]+")) {
+        if(config.cameraNetworkPort != null) {
             uri.append(":");
             uri.append(config.cameraNetworkPort);
         }
@@ -142,8 +143,32 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
     private void refreshData() {
         if (refreshInProgress.compareAndSet(false, true)) {
             try {
+                byte[] deviceInfoData = null;
                 for (Channel cx : getThing().getChannels()) {
-                    switch(cx.getAcceptedItemType()) {
+                    switch(cx.getUID().getId()) {
+                        case CHANNEL_PRODUCT_NAME:
+                        case CHANNEL_PRODUCT_FIRMWARE:
+                        case CHANNEL_DEVICE_NAME:
+                            if(deviceInfoData == null) {
+                                try {
+                                    deviceInfoData = readContent(new URL(getCameraCommandUri("getDevInfo")));
+                                    updateStatus(ThingStatus.ONLINE);
+                                } catch (Exception e) {
+                                    handleException(e);
+                                }
+                            }
+                            try {
+                                if(CHANNEL_PRODUCT_NAME.equals(cx.getUID().getId())) {
+                                    updateState(cx.getUID(), new StringType(getXMLTag(deviceInfoData, "productName")));
+                                } else if(CHANNEL_PRODUCT_FIRMWARE.equals(cx.getUID().getId())) {
+                                    updateState(cx.getUID(), new StringType(getXMLTag(deviceInfoData, "firmwareVer")));
+                                } else if(CHANNEL_DEVICE_NAME.equals(cx.getUID().getId())) {
+                                    updateState(cx.getUID(), new StringType(getXMLTag(deviceInfoData, "devName")));
+                                }
+                            } catch (Exception e) {
+                                handleException(e);
+                            }
+                            break;
                         case CHANNEL_MOTION:
                             logger.trace("Will update: {}::{}::{}", getThing().getUID().getId(),
                                 cx.getChannelTypeUID().getId(), getThing().getLabel());
@@ -214,10 +239,20 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
         InputStream response;
         if(config.cameraNetworkTLS) {
             HttpsURLConnection connection = HttpsURLConnection.class.cast(uri.openConnection());
+            if(config.disableHostnameValidation) {
+                connection.setHostnameVerifier(new HostnameVerifier() {
+                    public boolean verify(String hostname, SSLSession session) {
+                        return true;
+                    }
+                });
+            }
+            if(config.disableCertificateValidation) {
+                connection.setSSLSocketFactory(new LenientSSLSocketFactory());
+            }
             connection.setRequestMethod("GET");
             connection.addRequestProperty("Connection", "close");
             connection.setRequestProperty("User-Agent", BINDING_DESCRIPTION);
-            if(connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+            if(connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 throw new IOException("Unexpected HTTP response code: " + connection.getResponseCode());
             }
             response = connection.getInputStream();
@@ -226,7 +261,7 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
             connection.setRequestMethod("GET");
             connection.addRequestProperty("Connection", "close");
             connection.setRequestProperty("User-Agent", BINDING_DESCRIPTION);
-            if(connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+            if(connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 throw new IOException("Unexpected HTTP response code: " + connection.getResponseCode());
             }
             response = connection.getInputStream();
@@ -243,7 +278,10 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
         return baos.toByteArray();
     }
 
-    private static String getXMLTag(byte[] data, String tag) throws Exception {
+    private String getXMLTag(byte[] data, String tag) throws Exception {
+        if(data == null) {
+            return "";
+        }
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document doc = builder.parse(new ByteArrayInputStream(data));
@@ -257,6 +295,6 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
                 return element.getTextContent();
             }
         }
-        return null;
+        return "";
     }
 }

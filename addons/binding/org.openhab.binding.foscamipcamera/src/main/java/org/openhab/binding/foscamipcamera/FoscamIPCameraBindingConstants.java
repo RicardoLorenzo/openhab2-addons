@@ -35,6 +35,9 @@ public class FoscamIPCameraBindingConstants {
     public static final ThingTypeUID THING_TYPE_CAMERA = new ThingTypeUID(BINDING_ID, "camera");
 
     // List of all Channel ids
+    public static final String CHANNEL_PRODUCT_NAME = "product_name";
+    public static final String CHANNEL_PRODUCT_FIRMWARE = "product_firmware";
+    public static final String CHANNEL_DEVICE_NAME = "device_name";
     public static final String CHANNEL_MOTION = "motion_detection";
     public static final String CHANNEL_SNAPSHOT = "image_snapshot";
     public static final String CHANNEL_PTZ_CONTROL = "ptz_control";
