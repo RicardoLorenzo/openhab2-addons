@@ -73,9 +73,12 @@ public class FoscamIPCameraHandler extends BaseThingHandler {
     public void handleCommand(ChannelUID channelUID, Command command) {
         if(CHANNEL_PTZ_CONTROL.equals(channelUID.getId())) {
             try {
-                if(PTZ_CONTROL_VALID_COMMANDS.contains(command.toString())) {
-                    Integer moveResult = Integer.valueOf(getXMLTag(readContent(
-                        new URL(getCameraCommandUri(command.toString()))),"result"));
+                if("REFRESH".equals(command.toString())) {
+                    return;
+                } else if(PTZ_CONTROL_VALID_COMMANDS.contains(command.toString())) {
+                    Integer moveResult = Integer.valueOf(getXMLTag(readContent(new URL(getCameraCommandUri(command.toString()))),
+                        "result"));
+                    updateState(channelUID, new StringType(""));
                     updateStatus(ThingStatus.ONLINE);
                 } else {
                     logger.warn("could not handle command: {}", getThing(), command.toString());

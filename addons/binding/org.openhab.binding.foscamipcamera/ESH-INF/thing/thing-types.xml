@@ -88,7 +88,7 @@
 	<channel-type id="ptz_control">
 		<item-type>String</item-type>
 		<label>PTZ motion control</label>
-		<description>PTZ camera motion control lets you move the camera</description>
+		<description>PTZ camera motion control for moving the camera</description>
 		<category>MoveControl</category>
 		<state>
 			<options>
@@ -100,5 +100,4 @@
 			</options>
 		</state>
 	</channel-type>
-
 </thing:thing-descriptions>

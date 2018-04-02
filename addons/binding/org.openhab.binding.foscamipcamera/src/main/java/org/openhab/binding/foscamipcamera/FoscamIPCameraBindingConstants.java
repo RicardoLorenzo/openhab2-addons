@@ -50,5 +50,4 @@ public class FoscamIPCameraBindingConstants {
         PTZ_CONTROL_VALID_COMMANDS.add("ptzMoveRight");
         PTZ_CONTROL_VALID_COMMANDS.add("ptzMoveLeft");
     }
-
 }
